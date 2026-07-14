@@ -1,5 +1,4 @@
-version: '3'
-
+#version: '3' -> Linha comentada para evitar warning, descomentar caso necessário e preferido pela empresa;
 services:
     app:
         build:
@@ -41,3 +40,7 @@ services:
             - node-network
         ports: 
             - "8080:80"
+
+networks:
+    node-network:
+        driver: bridge

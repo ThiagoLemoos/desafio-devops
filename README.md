@@ -25,3 +25,16 @@ Se não entender algum conceito ou parte do problema, não é motivo para se pre
 Faça um fork e realize commits ao longo do processo para que possamos entender o seu modo de pensar! :)
  
   
+Troubleshooting:
+Tomei o seguinte warning/erro após rodar o docker-compose:
+```
+-> docker-compose up
+time="2026-07-14T15:54:30-03:00" level=warning msg="C:\\Estudos\\Kubernetes\\desafio-devops\\docker-compose.yaml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+service "nginx" refers to undefined network node-network: invalid compose project
+```
+
+Warning Version:
+- Removido o atributo `version` do docker-compose.yaml para evitar o warning.
+
+Erro Network:
+- Adicionado a definição de rede `node-network` no docker-compose.yaml para evitar o erro.
