@@ -38,3 +38,14 @@ Warning Version:
 
 Erro Network:
 - Adicionado a definição de rede `node-network` no docker-compose.yaml para evitar o erro.
+
+Erro no update do apt:
+- Bibliotecas debian não estavam sendo encontradas pois na versão 15 do node os repositorios foram descontinuados, alterado para 22 para resolver.
+
+Erro Express not found:
+- Adicionado o comando `npm install` no Dockerfile do node para instalar as dependências do express.
+
+Erro comunicação com o banco:
+- Corrigido o nome do banco que antes estava nodedb apontado no node, porém no docker-compose é node_db.
+
+
