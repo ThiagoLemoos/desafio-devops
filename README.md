@@ -48,4 +48,17 @@ Erro Express not found:
 Erro comunicação com o banco:
 - Corrigido o nome do banco que antes estava nodedb apontado no node, porém no docker-compose é node_db.
 
-
+Melhorias nos Dockerfiles:
+- Implementado multi-stage build no node/Dockerfile para reduzir tamanho da imagem final e separar dependências de build de runtime.
+- Alterado para imagens Alpine (node:22-alpine, nginx:1.25-alpine) para reduzir significativamente o tamanho das imagens.
+- Adicionado usuário não-root no container Node para melhorar segurança seguindo princípios de least privilege.
+- Substituído dockerize por health checks nativos do Docker para gerenciar dependências entre serviços de forma mais robusta.
+- Adicionado endpoint /health na aplicação para permitir health checks específicos sem efeitos colaterais no banco.
+- Adicionado labels de metadados em todos os Dockerfiles para melhor rastreabilidade e gestão de imagens.
+- Implementado health checks em todos os serviços (MySQL, Node, Nginx) para monitoramento automático da saúde dos containers.
+- Utilizado npm ci --only=production no Node para builds determinísticos e apenas dependências de produção.
+- Removido volume de desenvolvimento do docker-compose para tornar a configuração mais adequada para produção.
+- Corrigido COPY específico no MySQL para copiar apenas o init.sql necessário, evitando arquivos desnecessários.
+- Definido health check no MySQL usando mysqladmin ping para verificar disponibilidade do banco.
+- Adicionado health check no Nginx usando wget para verificar se o proxy está respondendo corretamente.
+- Removida imagem hardcoded do nginx no docker-compose para usar sempre a imagem buildada localmente.
