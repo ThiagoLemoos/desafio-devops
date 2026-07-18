@@ -5,6 +5,25 @@ faker.locale = 'pt_BR';
 
 const connection = require('./connectionDb');
 
+routes.get('/health', (_, res) => {
+    return res.send('OK');
+})
+
+routes.get('/', (_, res) => {
+    const sql = `INSERT INTO peoples(name) VALUES('${faker.name.findName()}')`;
+    connection.query(sql);
+
+    connection.query("SELECT * FROM peoples", (_, results) => {
+        let html = '<h1>Desafio Devops!</h1>';
+
+        results.forEach(element => {
+            html += element.name + '<br>'
+        })
+
+        return res.send(html);
+    });
+})
+
 routes.get('/', (_, res) => {
     const sql = `INSERT INTO peoples(name) VALUES('${faker.name.findName()}')`;
     connection.query(sql);

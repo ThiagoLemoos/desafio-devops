@@ -1,0 +1,234 @@
+name: CI for desafio-devops
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment (development || staging || production)"
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+  workflow_call:
+    inputs:
+      environment:
+        description: "Environment (development || staging || production)"
+        required: true
+        type: string
+      aws-region:
+        description: "AWS region"
+        required: true
+        type: string
+
+env:
+  SERVICE_NAME: desafioDevops
+
+jobs:
+  build-test-security:
+    name: Build + Tests
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: ThiagoLemoos/desafio-devops
+
+      # -----------------------------
+      # Setup Node.js
+      # -----------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # -----------------------------
+      # 1. BUILD & UNIT TEST
+      # -----------------------------
+      - name: Install dependencies
+        run: |
+          cd node
+          npm ci
+ 
+      - name: Run tests
+        run: |
+          cd node
+          npm test
+
+      # -----------------------------
+      # 2. LINTER - With ESLint
+      # -----------------------------
+      - name: Run ESLint
+        run: |
+          cd node
+          npm install -D eslint
+          npx eslint .
+
+      - name: Check code formatting
+        run: |
+          cd node
+          npm install -D prettier
+          npx prettier --check .
+
+      # -----------------------------
+      # 3. SCA - Dependency Scan
+      # -----------------------------
+      - name: Run Trivy (SCA - Filesystem)
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          scan-type: 'fs'
+          scan-ref: ${{ inputs.environment }}
+          severity: 'CRITICAL'
+          exit-code: '1'
+
+      # -----------------------------
+      # 4. SAST - Code Scan
+      # -----------------------------
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: auto
+
+# ============================================================
+#                     DOCKER SECTION
+# ============================================================
+
+  docker:
+    name: Docker Build + Container Scan
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    needs: build-test-security
+    env:
+      AWS_REGION: ${{ inputs.aws-region || vars.AWS_REGION }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: ThiagoLemoos/desafio-devops
+
+      # -----------------------------
+      # 5. Docker Build
+      # -----------------------------
+      - name: Build Docker Image
+        run: |
+          cd node
+          IMAGE_NAME=$SERVICE_NAME:${{ inputs.environment }}-${GITHUB_SHA}
+          docker build -t $IMAGE_NAME .
+
+      # -----------------------------
+      # 6. Container Scan (Trivy)
+      # -----------------------------
+      - name: Scan Docker Image (Trivy)
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}
+          severity: 'CRITICAL'
+          exit-code: '1'
+          trivyignores: ${{ inputs.environment }}/.trivyignore
+
+      # -----------------------------
+      # 7. Configure AWS Credentials
+      # -----------------------------
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # -----------------------------
+      # 8. Login to Amazon ECR
+      # -----------------------------
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # -----------------------------
+      # 9. Tag and Push Docker Image
+      # -----------------------------
+      - name: Tag and Push Image to ECR
+        run: |
+          COMMIT_HASH=${GITHUB_SHA::7}
+
+          ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          ECR_REPOSITORY=$SERVICE_NAME
+          IMAGE_TAG=${{ inputs.environment }}-$COMMIT_HASH
+
+          aws ecr describe-repositories --repository-names $ECR_REPOSITORY --region $AWS_REGION \
+          || aws ecr create-repository --repository-name $ECR_REPOSITORY --region $AWS_REGION
+
+          if aws ecr describe-images --repository-name $ECR_REPOSITORY --image-ids imageTag=$IMAGE_TAG --region $AWS_REGION >/dev/null 2>&1; then
+            echo "Tag $IMAGE_TAG already exists in $ECR_REPOSITORY, skipping push (repository is immutable)."
+          else
+            docker tag $IMAGE_NAME $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          fi
+
+  gitops:
+    name: Update GitOps Manifests
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    needs: docker
+    env:
+      AWS_REGION: ${{ inputs.aws-region || vars.AWS_REGION }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          repository: ThiagoLemoos/desafio-devops
+          fetch-depth: 0
+          token: ${{ secrets.GITOPS_TOKEN }}
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Update image tag
+        run: |
+          COMMIT_HASH=${GITHUB_SHA::7}
+          FILE_PATH="${{ inputs.environment }}/Helm/values.yaml"
+          NEW_IMAGE="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.SERVICE_NAME }}:${{ inputs.environment }}-$COMMIT_HASH"
+
+          echo "Updating $FILE_PATH to image: $NEW_IMAGE"
+
+          yq -i ".\"${{ env.SERVICE_NAME }}\".image = \"$NEW_IMAGE\"" "$FILE_PATH"
+
+          ACTUAL=$(yq ".\"${{ env.SERVICE_NAME }}\".image" "$FILE_PATH")
+          if [ "$ACTUAL" != "$NEW_IMAGE" ]; then
+            echo "::error::yq did not update image field. Got: $ACTUAL"
+            exit 1
+          fi
+
+          echo "values.yaml updated:"
+          cat "$FILE_PATH"
+
+      - name: Commit and Push changes
+        run: |
+          COMMIT_HASH=${GITHUB_SHA::7}
+          FILE_PATH="${{ inputs.environment }}/Helm/values.yaml"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add "$FILE_PATH"
+
+          if git diff --staged --quiet; then
+            echo "values.yaml already at $COMMIT_HASH — nothing to commit (re-run of same SHA)."
+            exit 0
+          fi
+
+          git commit -m "Update ${{ env.SERVICE_NAME }} image (${{ inputs.environment }}) to $COMMIT_HASH [skip ci]"
+          git push origin HEAD:${GITHUB_REF_NAME}
