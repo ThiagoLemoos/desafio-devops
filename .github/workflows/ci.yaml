@@ -23,7 +23,7 @@ on:
         type: string
 
 env:
-  SERVICE_NAME: desafioDevops
+  SERVICE_NAME: desafio-devops
 
 jobs:
   build-test-security:
