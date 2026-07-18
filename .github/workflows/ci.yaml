@@ -22,8 +22,8 @@ on:
         required: true
         type: string
 
-  permissions:
-    contents: write
+permissions:
+  contents: write
 
 env:
   SERVICE_NAME: desafio-devops
