@@ -48,6 +48,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
+          cache-dependency-path: node/package-lock.json
 
       # -----------------------------
       # 1. BUILD & UNIT TEST
