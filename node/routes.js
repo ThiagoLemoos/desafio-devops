@@ -11,32 +11,30 @@ routes.get('/health', (_, res) => {
 
 routes.get('/', (_, res) => {
     const sql = `INSERT INTO peoples(name) VALUES('${faker.name.findName()}')`;
-    connection.query(sql);
 
-    connection.query("SELECT * FROM peoples", (_, results) => {
-        let html = '<h1>Desafio Devops!</h1>';
+    connection.query(sql, (err) => {
 
-        results.forEach(element => {
-            html += element.name + '<br>'
-        })
+        if (err) {
+            console.error(err);
+            return res.status(500).send(err.message);
+        }
 
-        return res.send(html);
+        connection.query("SELECT * FROM peoples", (err, results) => {
+
+            if (err) {
+                console.error(err);
+                return res.status(500).send(err.message);
+            }
+
+            let html = "<h1>Desafio Devops!</h1>";
+
+            results.forEach(person => {
+                html += `${person.name}<br>`;
+            });
+
+            res.send(html);
+        });
     });
-})
-
-routes.get('/', (_, res) => {
-    const sql = `INSERT INTO peoples(name) VALUES('${faker.name.findName()}')`;
-    connection.query(sql);
-
-    connection.query("SELECT * FROM peoples", (_, results) => {
-        let html = '<h1>Desafio Devops!</h1>';
-
-        results.forEach(element => {
-            html += element.name + '<br>'
-        })
-
-        return res.send(html);
-    });
-})
+});
 
 module.exports = routes;
