@@ -3,7 +3,7 @@ desafioDevops:
   namespace: desafioDevops-dev
   namespace:
     create: true
-  image: 849630995556.dkr.ecr.us-east-1.amazonaws.com/desafioDevops:development
+  image: .dkr.ecr.us-east-1.amazonaws.com/desafio-devops:development-e8e5d8d
   imagePullPolicy: Always
   port: 3000
   imagePullSecrets:
@@ -39,7 +39,6 @@ desafioDevops:
     maxReplicas: 2
     targetCPUUtilizationPercentage: 80
     targetMemoryUtilizationPercentage: 80
-
 # External Secrets Operator Configuration
 externalSecret:
   enabled: true
@@ -51,7 +50,6 @@ externalSecret:
     user: desafioDevops-dev/user
     password: desafioDevops-dev/password
     database: desafioDevops-dev/database
-
 # SecretStore Configuration (AWS Secrets Manager)
 secretStore:
   enabled: true
