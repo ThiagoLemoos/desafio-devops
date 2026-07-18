@@ -7,7 +7,7 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 
 # Install dependencies with npm install (no package-lock.json exists)
-RUN RUN npm install --omit=dev --ignore-scripts && \
+RUN npm install --omit=dev --ignore-scripts && \
     npm cache clean --force
 
 # Copy application source
