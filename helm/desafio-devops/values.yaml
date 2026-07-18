@@ -1,0 +1,69 @@
+desafioDevops:
+  replicas: 1
+  namespace: desafioDevops
+  namespace:
+    create: true
+  image: 585534523398.dkr.ecr.us-east-1.amazonaws.com/desafioDevops:development
+  imagePullPolicy: IfNotPresent
+  port: 3000
+  imagePullSecrets:
+    - name: ecr-secret
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "250m"
+      memory: "256Mi"
+  probes:
+    enabled: true
+    path: /health
+    startup:
+      failureThreshold: 180
+      periodSeconds: 1
+    readiness:
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+    liveness:
+      initialDelaySeconds: 180
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+  ingress:
+    path: /desafioDevops(/|$)(.*)
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+# External Secrets Operator Configuration
+externalSecret:
+  enabled: true
+  refreshInterval: 1h
+  secretStoreName: aws-secrets-store
+  targetSecretName: db-credentials
+  remoteKeys:
+    host: desafioDevops/host
+    user: desafioDevops/user
+    password: desafioDevops/password
+    database: desafioDevops/database
+
+# SecretStore Configuration (AWS Secrets Manager)
+secretStore:
+  enabled: true
+  name: aws-secrets-store
+  provider: aws
+  aws:
+    region: us-east-1
+    serviceAccountName: external-secrets-sa
+  # Alternative: Vault configuration
+  # vault:
+  #   server: https://vault.example.com
+  #   path: secret
+  #   version: v2
+  #   authMountPath: auth/kubernetes
+  #   role: desafioDevops

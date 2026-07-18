@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: app-desafioDevops
+    {{- include "desafioDevops.labels" . | nindent 4 }}
+  name: app-desafioDevops
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  namespace: {{ (index .Values "desafioDevops").namespace }}
+spec:
+  strategy:
+    type: Recreate
+  replicas: {{ (index .Values "desafioDevops").replicas}}
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      app: app-desafioDevops
+  template:
+    metadata:
+      labels:
+        app: app-desafioDevops
+    spec:
+      containers:
+        - name: app-desafioDevops
+          image: {{ (index .Values "desafioDevops").image }}
+          imagePullPolicy: {{ (index .Values "desafioDevops").imagePullPolicy }}
+          env:
+            - name: MYSQL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalSecret.targetSecretName }}
+                  key: MYSQL_HOST
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalSecret.targetSecretName }}
+                  key: MYSQL_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalSecret.targetSecretName }}
+                  key: MYSQL_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalSecret.targetSecretName }}
+                  key: MYSQL_DATABASE
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          startupProbe:
+           httpGet:
+             path: /health
+             port: {{ (index .Values "desafioDevops").port }}
+           failureThreshold: 60
+           periodSeconds: 5
+           timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ (index .Values "desafioDevops").port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ (index .Values "desafioDevops").port }}
+            initialDelaySeconds: 180
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3

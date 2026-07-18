@@ -48,7 +48,6 @@ docker-compose.override.yml
 *.tgz
 charts/
 Chart.lock
-helm/
 
 # Build artifacts
 dist/
