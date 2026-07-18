@@ -3,8 +3,8 @@ module.exports = [
     files: ["**/*.js"],
     languageOptions: {
       ecmaVersion: "latest",
-      sourceType: "commonjs"
+      sourceType: "commonjs",
     },
-    rules: {}
-  }
+    rules: {},
+  },
 ];
