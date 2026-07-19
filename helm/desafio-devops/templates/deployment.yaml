@@ -2,49 +2,54 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: app-desafioDevops
+    app: app-desafio-devops
     {{- include "desafioDevops.labels" . | nindent 4 }}
-  name: app-desafioDevops
+  name: app-desafio-devops
   annotations:
     argocd.argoproj.io/sync-wave: "2"
-  namespace: {{ (index .Values "desafioDevops").namespace }}
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "{{ .Values.desafioDevops.port }}"
+    prometheus.io/path: "/metrics"
+  namespace: {{ .Values.desafioDevops.namespace.name }}
 spec:
   strategy:
     type: Recreate
-  replicas: {{ (index .Values "desafioDevops").replicas}}
+  replicas: {{ .Values.desafioDevops.replicas}}
   revisionHistoryLimit: 1
   selector:
     matchLabels:
-      app: app-desafioDevops
+      app: app-desafio-devops
   template:
     metadata:
       labels:
-        app: app-desafioDevops
+        app: app-desafio-devops
     spec:
+      imagePullSecrets:
+        - name: ecr-secret
       containers:
-        - name: app-desafioDevops
-          image: {{ (index .Values "desafioDevops").image }}
-          imagePullPolicy: {{ (index .Values "desafioDevops").imagePullPolicy }}
+        - name: app-desafio-devops
+          image: {{ .Values.desafioDevops.image }}
+          imagePullPolicy: {{ .Values.desafioDevops.imagePullPolicy }}
           env:
             - name: MYSQL_HOST
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.externalSecret.targetSecretName }}
+                  name: {{ .Values.sealedSecret.name }}
                   key: MYSQL_HOST
             - name: MYSQL_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.externalSecret.targetSecretName }}
+                  name: {{ .Values.sealedSecret.name }}
                   key: MYSQL_USER
             - name: MYSQL_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.externalSecret.targetSecretName }}
+                  name: {{ .Values.sealedSecret.name }}
                   key: MYSQL_PASSWORD
             - name: MYSQL_DATABASE
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.externalSecret.targetSecretName }}
+                  name: {{ .Values.sealedSecret.name }}
                   key: MYSQL_DATABASE
           resources:
             requests:
@@ -56,14 +61,14 @@ spec:
           startupProbe:
            httpGet:
              path: /health
-             port: {{ (index .Values "desafioDevops").port }}
+             port: {{ .Values.desafioDevops.port }}
            failureThreshold: 60
            periodSeconds: 5
            timeoutSeconds: 3
           readinessProbe:
             httpGet:
               path: /health
-              port: {{ (index .Values "desafioDevops").port }}
+              port: {{ .Values.desafioDevops.port }}
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
@@ -71,7 +76,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /health
-              port: {{ (index .Values "desafioDevops").port }}
+              port: {{ .Values.desafioDevops.port }}
             initialDelaySeconds: 180
             periodSeconds: 10
             timeoutSeconds: 3

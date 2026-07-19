@@ -1,11 +1,11 @@
-{{- if .Values.namespace.create }}
+{{- if .Values.desafioDevops.namespace.create }}
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{ .Values.desafioDevops.namespace }}
+  name: {{ .Values.desafioDevops.namespace.name }}
   annotations:
     argocd.argoproj.io/sync-wave: "0"
   labels:
-    name: {{ .Values.desafioDevops.namespace }}
+    name: {{ .Values.desafioDevops.namespace.name }}
     {{- include "desafioDevops.labels" . | nindent 4 }}
 {{- end }}

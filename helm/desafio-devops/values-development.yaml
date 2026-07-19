@@ -1,9 +1,9 @@
 desafioDevops:
   replicas: 1
-  namespace: desafioDevops-dev
-  namespace:
+  namespace:  
+    name: desafio-devops
     create: true
-  image: 849630995556.dkr.ecr.us-east-1.amazonaws.com/desafioDevops:development
+  image: 849630995556.dkr.ecr.us-east-1.amazonaws.com/desafio-devops:development-e8e5d8d
   imagePullPolicy: Always
   port: 3000
   imagePullSecrets:
@@ -40,23 +40,13 @@ desafioDevops:
     targetCPUUtilizationPercentage: 80
     targetMemoryUtilizationPercentage: 80
 
-# External Secrets Operator Configuration
-externalSecret:
+# SealedSecret Configuration
+sealedSecret:
   enabled: true
-  refreshInterval: 5m
-  secretStoreName: aws-secrets-store-dev
-  targetSecretName: db-credentials
-  remoteKeys:
-    host: desafioDevops-dev/host
-    user: desafioDevops-dev/user
-    password: desafioDevops-dev/password
-    database: desafioDevops-dev/database
-
-# SecretStore Configuration (AWS Secrets Manager)
-secretStore:
-  enabled: true
-  name: aws-secrets-store-dev
-  provider: aws
-  aws:
-    region: us-east-1
-    serviceAccountName: external-secrets-sa
+  name: db-credentials
+  namespace: desafio-devops
+  encryptedData:
+    MYSQL_HOST: "" # Add encrypted value using kubeseal
+    MYSQL_USER: "" # Add encrypted value using kubeseal
+    MYSQL_PASSWORD: "" # Add encrypted value using kubeseal
+    MYSQL_DATABASE: "" # Add encrypted value using kubeseal

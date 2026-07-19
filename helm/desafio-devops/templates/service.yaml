@@ -1,20 +1,15 @@
-{{- range $appName, $appConfig := .Values }}
-{{- if and (kindIs "map" $appConfig) (hasKey $appConfig "port") }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: app-{{ $appName }}
-  namespace: {{ default "default" $appConfig.namespace }}
+  name: app-desafio-devops
+  namespace: {{ .Values.desafioDevops.namespace.name }}
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
   selector:
-    app: app-{{ $appName }}
+    app: app-desafio-devops
   ports:
-  - name: app-{{ $appName }}
-    port: {{ $appConfig.port }}
-    targetPort: {{ $appConfig.port }}
+  - name: app-desafio-devops
+    port: {{ .Values.desafioDevops.port }}
+    targetPort: {{ .Values.desafioDevops.port }}
   type: ClusterIP
----
-{{- end }}
-{{- end }}

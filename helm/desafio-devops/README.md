@@ -1,6 +1,6 @@
 # Helm Chart - Desafio DevOps
 
-Este Helm chart foi projetado para deploy da aplicação Node.js com MySQL e Nginx, utilizando External Secrets Operator para gerenciamento de secrets.
+Este Helm chart foi projetado para deploy da aplicação Node.js com MySQL e Nginx, utilizando Sealed Secrets para gerenciamento de secrets.
 
 ## Estrutura
 
@@ -17,51 +17,43 @@ helm/desafioDevops/
 │   ├── service.yaml         # Service
 │   ├── hpa.yaml            # Horizontal Pod Autoscaler
 │   ├── ingress.yaml        # Ingress
-│   ├── external-secret.yaml # ExternalSecret para credenciais
-│   └── secret-store.yaml    # SecretStore para AWS Secrets Manager
+│   └── sealedsecret.yaml   # SealedSecret para credenciais
 ```
 
 ## Pré-requisitos
 
 - Kubernetes cluster
 - Helm 3.x
-- External Secrets Operator instalado
-- AWS Secrets Manager configurado (ou Vault)
+- Sealed Secrets Controller instalado
+- kubeseal CLI instalado
 
-## Configuração do External Secrets Operator
+## Configuração do Sealed Secrets
 
-Opção 2: External Secrets Operator com AWS Secrets Manager
-
-### 1. Criar secrets no AWS Secrets Manager
+### 1. Instalar o Sealed Secrets Controller
 
 ```bash
-aws secretsmanager create-secret \
-  --name desafioDevops/host \
-  --secret-string "mysql-service.desafioDevops.svc.cluster.local"
-
-aws secretsmanager create-secret \
-  --name desafioDevops/user \
-  --secret-string "root"
-
-aws secretsmanager create-secret \
-  --name desafioDevops/password \
-  --secret-string "your-password"
-
-aws secretsmanager create-secret \
-  --name desafioDevops/database \
-  --secret-string "node_db"
+# Via Helm
+helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
+helm install sealed-secrets sealed-secrets/sealed-secrets --namespace kube-system
 ```
 
-### 2. Criar IAM Role para External Secrets
+### 2. Criar e Criptografar o Secret
 
-```yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: external-secrets-sa
-  namespace: desafioDevops
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/ExternalSecretsRole
+```bash
+# Criar um secret temporário com as credenciais
+kubectl create secret generic db-credentials \
+  --from-literal=MYSQL_HOST=mysql-service.desafio-devops.svc.cluster.local \
+  --from-literal=MYSQL_USER=root \
+  --from-literal=MYSQL_PASSWORD=your-password \
+  --from-literal=MYSQL_DATABASE=node_db \
+  --namespace desafio-devops \
+  --dry-run=client -o yaml > secret.yaml
+
+# Criptografar o secret usando kubeseal
+kubeseal --format yaml --cert <(kubectl get secret -n kube-system sealed-secrets-key -o yaml) -f secret.yaml -w sealedsecret.yaml
+
+# Copiar os valores criptografados para o arquivo values correspondente
+# Exemplo: values-development.yaml ou values-prod.yaml
 ```
 
 ### 3. Configurar ArgoCD Application
@@ -80,7 +72,7 @@ spec:
     path: helm/desafioDevops
     helm:
       valueFiles:
-        - values-dev.yaml
+        - values-development.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: desafioDevops-dev
@@ -97,13 +89,13 @@ spec:
 ```bash
 # Ambiente de desenvolvimento
 helm install desafioDevops ./helm/desafioDevops \
-  -f helm/desafioDevops/values-dev.yaml \
+  -f helm/desafioDevops/values-development.yaml \
   --namespace desafioDevops-dev \
   --create-namespace
 
 # Ambiente de produção
 helm install desafioDevops ./helm/desafioDevops \
-  -f helm/desafioDevops/values-prod.yaml \
+  -f helm/desafioDevops/values-production.yaml \
   --namespace desafioDevops-prod \
   --create-namespace
 ```
@@ -116,22 +108,21 @@ helm install desafioDevops ./helm/desafioDevops \
 | `desafioDevops.namespace` | Namespace | `desafioDevops` |
 | `desafioDevops.image` | Imagem da aplicação | `ECR image` |
 | `desafioDevops.port` | Porta da aplicação | `3000` |
-| `externalSecret.enabled` | Habilitar External Secrets | `true` |
-| `externalSecret.refreshInterval` | Intervalo de refresh | `1h` |
-| `secretStore.provider` | Provider (aws/vault) | `aws` |
+| `sealedSecret.enabled` | Habilitar SealedSecrets | `true` |
+| `sealedSecret.name` | Nome do SealedSecret | `db-credentials` |
+| `sealedSecret.namespace` | Namespace do SealedSecret | `desafio-devops` |
 | `autoscaling.enabled` | Habilitar HPA | `true` |
 
 ## Sync Waves para ArgoCD
 
 Os recursos são criados na seguinte ordem:
 
-1. **Wave 0**: Namespace, SecretStore
-2. **Wave 1**: ExternalSecret
-3. **Wave 2**: Deployment, Service, HPA, Ingress
+1. **Wave 0**: Namespace, SealedSecret
+2. **Wave 2**: Deployment, Service, HPA, Ingress
 
 ## Segurança
 
-- Secrets são armazenados no AWS Secrets Manager
-- External Secrets Operator sincroniza secrets com Kubernetes
-- Secrets não são versionados no Git
-- IRSA (IAM Roles for Service Accounts) para autenticação AWS
+- Secrets são criptografados usando Sealed Secrets e podem ser versionados no Git
+- Sealed Secrets Controller descriptografa os secrets no cluster
+- Apenas o cluster com a chave privada pode descriptografar os secrets
+- Nenhuma dependência de serviços externos como AWS Secrets Manager

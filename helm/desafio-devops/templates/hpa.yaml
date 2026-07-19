@@ -1,29 +1,29 @@
-{{- if (index .Values "desafioDevops").autoscaling.enabled }}
+{{- if .Values.desafioDevops.autoscaling.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: desafioDevops-hpa
-  namespace: {{ (index .Values "desafioDevops").namespace }}
+  name: desafio-devops-hpa
+  namespace: {{ .Values.desafioDevops.namespace.name }}
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: app-desafioDevops
-  minReplicas: {{ (index .Values "desafioDevops").autoscaling.minReplicas }}
-  maxReplicas: {{ (index .Values "desafioDevops").autoscaling.maxReplicas }}
+    name: app-desafio-devops
+  minReplicas: {{ .Values.desafioDevops.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.desafioDevops.autoscaling.maxReplicas }}
   metrics:
   - type: Resource
     resource:
       name: cpu
       target:
         type: Utilization
-        averageUtilization: {{ (index .Values "desafioDevops").autoscaling.targetCPUUtilizationPercentage }}
+        averageUtilization: {{ .Values.desafioDevops.autoscaling.targetCPUUtilizationPercentage }}
   - type: Resource
     resource:
       name: memory
       target:
         type: Utilization
-        averageUtilization: {{ (index .Values "desafioDevops").autoscaling.targetMemoryUtilizationPercentage }}
+        averageUtilization: {{ .Values.desafioDevops.autoscaling.targetMemoryUtilizationPercentage }}
 {{- end }}
