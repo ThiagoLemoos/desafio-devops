@@ -22,8 +22,11 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: write
+
 env:
-  SERVICE_NAME: desafioDevops
+  SERVICE_NAME: desafio-devops
 
 jobs:
   build-test-security:
@@ -32,7 +35,7 @@ jobs:
     environment: ${{ inputs.environment }}
     defaults:
       run:
-        working-directory: ${{ inputs.environment }}
+        working-directory: ./node
 
     steps:
       - name: Checkout
@@ -46,20 +49,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: '24'
 
       # -----------------------------
       # 1. BUILD & UNIT TEST
       # -----------------------------
       - name: Install dependencies
         run: |
-          cd node
-          npm ci
+          npm install
  
       - name: Run tests
         run: |
-          cd node
           npm test
 
       # -----------------------------
@@ -67,13 +67,11 @@ jobs:
       # -----------------------------
       - name: Run ESLint
         run: |
-          cd node
           npm install -D eslint
           npx eslint .
 
       - name: Check code formatting
         run: |
-          cd node
           npm install -D prettier
           npx prettier --check .
 
@@ -84,7 +82,7 @@ jobs:
         uses: aquasecurity/trivy-action@0.35.0
         with:
           scan-type: 'fs'
-          scan-ref: ${{ inputs.environment }}
+          scan-ref: './node'
           severity: 'CRITICAL'
           exit-code: '1'
 
@@ -109,7 +107,7 @@ jobs:
       AWS_REGION: ${{ inputs.aws-region || vars.AWS_REGION }}
     defaults:
       run:
-        working-directory: ${{ inputs.environment }}
+        working-directory: ./node
 
     steps:
       - name: Checkout
@@ -122,9 +120,9 @@ jobs:
       # -----------------------------
       - name: Build Docker Image
         run: |
-          cd node
           IMAGE_NAME=$SERVICE_NAME:${{ inputs.environment }}-${GITHUB_SHA}
           docker build -t $IMAGE_NAME .
+          echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
 
       # -----------------------------
       # 6. Container Scan (Trivy)
@@ -135,7 +133,7 @@ jobs:
           image-ref: ${{ env.IMAGE_NAME }}
           severity: 'CRITICAL'
           exit-code: '1'
-          trivyignores: ${{ inputs.environment }}/.trivyignore
+          trivyignores: node/.trivyignore
 
       # -----------------------------
       # 7. Configure AWS Credentials
@@ -161,12 +159,13 @@ jobs:
         run: |
           COMMIT_HASH=${GITHUB_SHA::7}
 
-          ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
           ECR_REPOSITORY=$SERVICE_NAME
           IMAGE_TAG=${{ inputs.environment }}-$COMMIT_HASH
 
-          aws ecr describe-repositories --repository-names $ECR_REPOSITORY --region $AWS_REGION \
-          || aws ecr create-repository --repository-name $ECR_REPOSITORY --region $AWS_REGION
+          aws ecr describe-repositories --repository-names $ECR_REPOSITORY --region ${{ env.AWS_REGION }} \
+          || aws ecr create-repository --repository-name $ECR_REPOSITORY --region ${{ env.AWS_REGION }}
 
           if aws ecr describe-images --repository-name $ECR_REPOSITORY --image-ids imageTag=$IMAGE_TAG --region $AWS_REGION >/dev/null 2>&1; then
             echo "Tag $IMAGE_TAG already exists in $ECR_REPOSITORY, skipping push (repository is immutable)."
@@ -187,10 +186,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          repository: ThiagoLemoos/desafio-devops
-          fetch-depth: 0
-          token: ${{ secrets.GITOPS_TOKEN }}
-
+          persist-credentials: true
+        
       - name: Install yq
         run: |
           sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
@@ -199,14 +196,14 @@ jobs:
       - name: Update image tag
         run: |
           COMMIT_HASH=${GITHUB_SHA::7}
-          FILE_PATH="${{ inputs.environment }}/Helm/values.yaml"
+          FILE_PATH="helm/desafio-devops/values-${{ inputs.environment }}.yaml"
           NEW_IMAGE="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.SERVICE_NAME }}:${{ inputs.environment }}-$COMMIT_HASH"
 
           echo "Updating $FILE_PATH to image: $NEW_IMAGE"
 
-          yq -i ".\"${{ env.SERVICE_NAME }}\".image = \"$NEW_IMAGE\"" "$FILE_PATH"
+          yq -i ".desafioDevops.image = \"$NEW_IMAGE\"" "$FILE_PATH"
 
-          ACTUAL=$(yq ".\"${{ env.SERVICE_NAME }}\".image" "$FILE_PATH")
+          ACTUAL=$(yq ".desafioDevops.image" "$FILE_PATH")
           if [ "$ACTUAL" != "$NEW_IMAGE" ]; then
             echo "::error::yq did not update image field. Got: $ACTUAL"
             exit 1
@@ -218,7 +215,7 @@ jobs:
       - name: Commit and Push changes
         run: |
           COMMIT_HASH=${GITHUB_SHA::7}
-          FILE_PATH="${{ inputs.environment }}/Helm/values.yaml"
+          FILE_PATH="helm/desafio-devops/values-${{ inputs.environment }}.yaml"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

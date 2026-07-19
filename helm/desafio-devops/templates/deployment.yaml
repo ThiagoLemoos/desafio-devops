@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: app-desafio-devops
+    {{- include "desafioDevops.labels" . | nindent 4 }}
+  name: app-desafio-devops
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "{{ .Values.desafioDevops.port }}"
+    prometheus.io/path: "/metrics"
+  namespace: {{ .Values.desafioDevops.namespace.name }}
+spec:
+  strategy:
+    type: Recreate
+  replicas: {{ .Values.desafioDevops.replicas}}
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      app: app-desafio-devops
+  template:
+    metadata:
+      labels:
+        app: app-desafio-devops
+    spec:
+      imagePullSecrets:
+        - name: ecr-secret
+      containers:
+        - name: app-desafio-devops
+          image: {{ .Values.desafioDevops.image }}
+          imagePullPolicy: {{ .Values.desafioDevops.imagePullPolicy }}
+          env:
+            - name: MYSQL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.sealedSecret.name }}
+                  key: MYSQL_HOST
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.sealedSecret.name }}
+                  key: MYSQL_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.sealedSecret.name }}
+                  key: MYSQL_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.sealedSecret.name }}
+                  key: MYSQL_DATABASE
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          startupProbe:
+           httpGet:
+             path: /health
+             port: {{ .Values.desafioDevops.port }}
+           failureThreshold: 60
+           periodSeconds: 5
+           timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.desafioDevops.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.desafioDevops.port }}
+            initialDelaySeconds: 180
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3

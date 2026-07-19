@@ -1,0 +1,52 @@
+desafioDevops:
+  replicas: 3
+  namespace:
+    name: desafio-devops-prod
+    create: true
+  image: 585534523398.dkr.ecr.us-east-1.amazonaws.com/desafioDevops:production
+  imagePullPolicy: IfNotPresent
+  port: 3000
+  imagePullSecrets:
+    - name: ecr-secret
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  probes:
+    enabled: true
+    path: /health
+    startup:
+      failureThreshold: 180
+      periodSeconds: 1
+    readiness:
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+    liveness:
+      initialDelaySeconds: 180
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+  ingress:
+    path: /desafioDevops(/|$)(.*)
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# SealedSecret Configuration
+sealedSecret:
+  enabled: true
+  name: db-credentials
+  namespace: desafio-devops-prod
+  encryptedData:
+    MYSQL_HOST: "" # Add encrypted value using kubeseal
+    MYSQL_USER: "" # Add encrypted value using kubeseal
+    MYSQL_PASSWORD: "" # Add encrypted value using kubeseal
+    MYSQL_DATABASE: "" # Add encrypted value using kubeseal

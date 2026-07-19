@@ -1,0 +1,23 @@
+{{- if .Values.desafioDevops.ingress }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: desafio-devops-ingress
+  namespace: {{ .Values.desafioDevops.namespace.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: {{ .Values.desafioDevops.ingress.path }}
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: app-desafio-devops
+                port:
+                  number: {{ .Values.desafioDevops.port }}
+{{- end }}
